@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 )
 
@@ -42,7 +41,7 @@ func (s ParcelStore) Get(number int) (Parcel, error) {
 	p := Parcel{}
 	err := row.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
 	if err != nil {
-		return p, err
+		return Parcel{}, err
 	}
 	return p, nil
 }
@@ -60,12 +59,11 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	for rows.Next() {
 		p := Parcel{}
 		err = rows.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
-		if err != nil {
+		if err = rows.Err(); err != nil {
 			return nil, err
 		}
 		res = append(res, p)
 	}
-
 	return res, nil
 }
 
@@ -83,18 +81,10 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 func (s ParcelStore) SetAddress(number int, address string) error {
 	// реализуйте обновление адреса в таблице parcel
 	// менять адрес можно только если значение статуса registered
-	var status string
-	err := s.db.QueryRow("SELECT status FROM parcel WHERE number = :number",
-		sql.Named("number", number)).Scan(&status)
-	if err != nil {
-		return err
-	}
-	if status != ParcelStatusRegistered {
-		return errors.New("invalid status")
-	}
-	_, err = s.db.Exec("UPDATE parcel SET address = :address WHERE status = :status",
+	res, err := s.db.Exec("UPDATE parcel SET address = :address WHERE status = :status",
 		sql.Named("address", address),
 		sql.Named("status", ParcelStatusRegistered))
+	_, err = res.RowsAffected()
 	if err != nil {
 		fmt.Println(err)
 	}
