@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
 )
 
 type ParcelStore struct {
@@ -21,11 +20,11 @@ func (s ParcelStore) Add(p Parcel) (int, error) {
 		sql.Named("address", p.Address),
 		sql.Named("created_at", p.CreatedAt))
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	lastId, err := res.LastInsertId()
 	if err != nil {
-		return -2, err
+		return 0, err
 	}
 	// верните идентификатор последней добавленной записи
 	return int(lastId), nil
@@ -51,19 +50,20 @@ func (s ParcelStore) GetByClient(client int) ([]Parcel, error) {
 	// здесь из таблицы может вернуться несколько строк
 	rows, err := s.db.Query("SELECT number, client, status, address, created_at  FROM parcel WHERE client = :client",
 		sql.Named("client", client))
-	defer rows.Close()
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
+
 	// заполните срез Parcel данными из таблицы
 	var res []Parcel
 	for rows.Next() {
 		p := Parcel{}
 		err = rows.Scan(&p.Number, &p.Client, &p.Status, &p.Address, &p.CreatedAt)
-		if err = rows.Err(); err != nil {
-			return nil, err
-		}
 		res = append(res, p)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
 	}
 	return res, nil
 }
@@ -82,12 +82,13 @@ func (s ParcelStore) SetStatus(number int, status string) error {
 func (s ParcelStore) SetAddress(number int, address string) error {
 	// реализуйте обновление адреса в таблице parcel
 	// менять адрес можно только если значение статуса registered
-	res, err := s.db.Exec("UPDATE parcel SET address = :address WHERE status = :status",
+	res, err := s.db.Exec("UPDATE parcel SET address = :address WHERE status = :status AND number = :number",
 		sql.Named("address", address),
-		sql.Named("status", ParcelStatusRegistered))
+		sql.Named("status", ParcelStatusRegistered),
+		sql.Named("number", number))
 	_, err = res.RowsAffected()
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	return nil
 }
@@ -99,7 +100,7 @@ func (s ParcelStore) Delete(number int) error {
 		sql.Named("number", number),
 		sql.Named("status", ParcelStatusRegistered))
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	return nil
 }
